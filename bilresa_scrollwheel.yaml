@@ -1,74 +1,85 @@
 blueprint:
-  name: IKEA BILRESA Scroll Wheel – Light + Media (2 groups)
+  name: IKEA BILRESA Scroll Wheel – Single Group
   description: >
-    Map one Bilresa group to a light (toggle + dim + CT cycle) and one group to a media player
-    (play/pause + volume + next track).
+    Map one Bilresa group (3 event entities) to a role: **light** or **media**.
+    Create one automation instance per group you want to activate.
 
-    - Single press (light group): toggle light
-    - Double press (light group): cycle 3 color_temp_kelvin presets
-    - Scroll right/left (light group): brightness up/down, scaled by notch count
+    **Light role:**
+    - Single press: toggle light
+    - Double press: cycle 3 color_temp_kelvin presets
+    - Scroll right/left: brightness up/down (scaled by notch count)
 
-    - Single press (media group): play/pause
-    - Double press (media group): next track
-    - Scroll right/left (media group): volume up/down, scaled by notch count
+    **Media role:**
+    - Single press: play/pause
+    - Double press: next track
+    - Scroll right/left: volume up/down (scaled by notch count)
+
   domain: automation
   source_url: https://github.com/yourname/ha-bilresa-blueprints
 
   input:
-    # --- Select which Bilresa group does LIGHT ---
-    light_scroll_right_event:
-      name: Light group – scroll right event entity
-      description: "Example: event.bilresa_scroll_wheel_button_1 (or 4 or 7 depending on which group you choose)"
+
+    # ═══════════════════════════════════════════════
+    # GROUP ROLE & EVENTS
+    # ═══════════════════════════════════════════════
+
+    group_role:
+      name: "Role"
+      description: "What this group controls."
+      default: light
       selector:
-        entity:
-          domain: event
-    light_scroll_left_event:
-      name: Light group – scroll left event entity
-      description: "Example: event.bilresa_scroll_wheel_button_2 (or 5 or 8)"
-      selector:
-        entity:
-          domain: event
-    light_press_event:
-      name: Light group – press event entity
-      description: "Example: event.bilresa_scroll_wheel_button_3 (or 6 or 9)"
+        select:
+          options:
+            - label: "Light"
+              value: light
+            - label: "Media player"
+              value: media
+
+    scroll_right_event:
+      name: "Scroll right event entity"
+      description: "e.g. event.bilresa_scroll_wheel_button_1"
       selector:
         entity:
           domain: event
 
-    # --- Select which Bilresa group does MEDIA ---
-    media_scroll_right_event:
-      name: Media group – scroll right event entity
-      description: "Example: event.bilresa_scroll_wheel_button_4 (or 1 or 7 depending on which group you choose)"
-      selector:
-        entity:
-          domain: event
-    media_scroll_left_event:
-      name: Media group – scroll left event entity
-      description: "Example: event.bilresa_scroll_wheel_button_5 (or 2 or 8)"
-      selector:
-        entity:
-          domain: event
-    media_press_event:
-      name: Media group – press event entity
-      description: "Example: event.bilresa_scroll_wheel_button_6 (or 3 or 9)"
+    scroll_left_event:
+      name: "Scroll left event entity"
+      description: "e.g. event.bilresa_scroll_wheel_button_2"
       selector:
         entity:
           domain: event
 
-    # --- Targets ---
+    press_event:
+      name: "Press event entity"
+      description: "e.g. event.bilresa_scroll_wheel_button_3"
+      selector:
+        entity:
+          domain: event
+
+    # ═══════════════════════════════════════════════
+    # TARGETS
+    # ═══════════════════════════════════════════════
+
     target_light:
-      name: Light (or light group)
+      name: "Target light"
+      description: "Required when role = light. Ignored otherwise."
+      default: ""
       selector:
         entity:
           domain: light
 
-    target_media_player:
-      name: Media player
+    target_media:
+      name: "Target media player"
+      description: "Required when role = media. Ignored otherwise."
+      default: ""
       selector:
         entity:
           domain: media_player
 
-    # --- Tuning ---
+    # ═══════════════════════════════════════════════
+    # SHARED TUNING
+    # ═══════════════════════════════════════════════
+
     brightness_step_pct:
       name: Brightness step per notch (%)
       default: 5
@@ -81,7 +92,7 @@ blueprint:
 
     volume_step:
       name: Volume step per notch (0–1)
-      description: "0.02 ≈ 2% per notch"
+      description: "0.03 ≈ 3% per notch"
       default: 0.03
       selector:
         number:
@@ -89,7 +100,6 @@ blueprint:
           max: 0.2
           step: 0.01
 
-    # --- Light color temperature cycle (double press) ---
     ct_preset_1_kelvin:
       name: CT preset 1 (Kelvin)
       default: 2700
@@ -99,6 +109,7 @@ blueprint:
           max: 9000
           step: 50
           unit_of_measurement: K
+
     ct_preset_2_kelvin:
       name: CT preset 2 (Kelvin)
       default: 3500
@@ -108,6 +119,7 @@ blueprint:
           max: 9000
           step: 50
           unit_of_measurement: K
+
     ct_preset_3_kelvin:
       name: CT preset 3 (Kelvin)
       default: 5000
@@ -120,7 +132,7 @@ blueprint:
 
     ct_match_tolerance_kelvin:
       name: CT match tolerance (Kelvin)
-      description: "How close the current CT must be to a preset to consider it 'currently on that preset'."
+      description: "How close the current CT must be to a preset to count as 'on that preset'."
       default: 200
       selector:
         number:
@@ -133,36 +145,30 @@ mode: restart
 max_exceeded: silent
 
 variables:
+  role:         !input group_role
+  ev_right:     !input scroll_right_event
+  ev_left:      !input scroll_left_event
+  ev_press:     !input press_event
   light_entity: !input target_light
-  media_entity: !input target_media_player
-
-  ev_light_right: !input light_scroll_right_event
-  ev_light_left: !input light_scroll_left_event
-  ev_light_press: !input light_press_event
-
-  ev_media_right: !input media_scroll_right_event
-  ev_media_left: !input media_scroll_left_event
-  ev_media_press: !input media_press_event
-
+  media_entity: !input target_media
   step_bri_pct: !input brightness_step_pct
-  step_vol: !input volume_step
-
-  ct1: !input ct_preset_1_kelvin
-  ct2: !input ct_preset_2_kelvin
-  ct3: !input ct_preset_3_kelvin
-  ct_tol: !input ct_match_tolerance_kelvin
+  step_vol:     !input volume_step
+  ct1:          !input ct_preset_1_kelvin
+  ct2:          !input ct_preset_2_kelvin
+  ct3:          !input ct_preset_3_kelvin
+  ct_tol:       !input ct_match_tolerance_kelvin
 
 trigger:
   - platform: state
-    entity_id:
-      - !input light_scroll_right_event
-      - !input light_scroll_left_event
-      - !input light_press_event
-      - !input media_scroll_right_event
-      - !input media_scroll_left_event
-      - !input media_press_event
+    entity_id: !input scroll_right_event
+  - platform: state
+    entity_id: !input scroll_left_event
+  - platform: state
+    entity_id: !input press_event
 
 action:
+
+  # ── Step 1: resolve runtime event fields ─────────────────────────────────
   - variables:
       ev_type: >
         {{ trigger.to_state.attributes.event_type
@@ -173,6 +179,8 @@ action:
            | default(state_attr(trigger.entity_id, 'totalNumberOfPressesCounted'))
            | default(1) | int(1) }}
 
+  # ── Step 2: compute next CT preset (light role only) ─────────────────────
+  - variables:
       current_ct_k: >
         {% set k = state_attr(light_entity, 'color_temp_kelvin') %}
         {% if k is not none %}
@@ -185,7 +193,6 @@ action:
             0
           {% endif %}
         {% endif %}
-
       next_ct_k: >
         {% set k = current_ct_k | int(0) %}
         {% set t = ct_tol | int(200) %}
@@ -202,22 +209,18 @@ action:
           {{ p1 }}
         {% endif %}
 
+  # ── Step 3: route to the correct action ──────────────────────────────────
   - choose:
-      # --------------------
-      # LIGHT GROUP ACTIONS
-      # --------------------
 
-      # Light single press: toggle
-      - conditions: >
-          {{ trigger.entity_id == ev_light_press and ev_type == 'multi_press_1' }}
+      # ── LIGHT ROLE ────────────────────────────────────────────────────────
+
+      - conditions: "{{ role == 'light' and trigger.entity_id == ev_press and ev_type == 'multi_press_1' }}"
         sequence:
           - service: light.toggle
             target:
               entity_id: "{{ light_entity }}"
 
-      # Light double press: cycle CT presets
-      - conditions: >
-          {{ trigger.entity_id == ev_light_press and ev_type == 'multi_press_2' }}
+      - conditions: "{{ role == 'light' and trigger.entity_id == ev_press and ev_type == 'multi_press_2' }}"
         sequence:
           - service: light.turn_on
             target:
@@ -225,9 +228,7 @@ action:
             data:
               color_temp_kelvin: "{{ next_ct_k }}"
 
-      # Light scroll right: brighter
-      - conditions: >
-          {{ trigger.entity_id == ev_light_right and ev_type.startswith('multi_press_') }}
+      - conditions: "{{ role == 'light' and trigger.entity_id == ev_right and ev_type.startswith('multi_press_') }}"
         sequence:
           - service: light.turn_on
             target:
@@ -235,9 +236,7 @@ action:
             data:
               brightness_step_pct: "{{ (step_bri_pct | int(5)) * count }}"
 
-      # Light scroll left: dimmer
-      - conditions: >
-          {{ trigger.entity_id == ev_light_left and ev_type.startswith('multi_press_') }}
+      - conditions: "{{ role == 'light' and trigger.entity_id == ev_left and ev_type.startswith('multi_press_') }}"
         sequence:
           - service: light.turn_on
             target:
@@ -245,56 +244,48 @@ action:
             data:
               brightness_step_pct: "{{ 0 - (step_bri_pct | int(5)) * count }}"
 
-      # --------------------
-      # MEDIA GROUP ACTIONS
-      # --------------------
+      # ── MEDIA ROLE ────────────────────────────────────────────────────────
 
-      # Media single press: play/pause
-      - conditions: >
-          {{ trigger.entity_id == ev_media_press and ev_type == 'multi_press_1' }}
+      - conditions: "{{ role == 'media' and trigger.entity_id == ev_press and ev_type == 'multi_press_1' }}"
         sequence:
           - service: media_player.media_play_pause
             target:
               entity_id: "{{ media_entity }}"
 
-      # Media double press: next track
-      - conditions: >
-          {{ trigger.entity_id == ev_media_press and ev_type == 'multi_press_2' }}
+      - conditions: "{{ role == 'media' and trigger.entity_id == ev_press and ev_type == 'multi_press_2' }}"
         sequence:
           - service: media_player.media_next_track
             target:
               entity_id: "{{ media_entity }}"
 
-      # Media scroll right: volume up
-      - conditions: >
-          {{ trigger.entity_id == ev_media_right and ev_type.startswith('multi_press_') }}
+      - conditions: "{{ role == 'media' and trigger.entity_id == ev_right and ev_type.startswith('multi_press_') }}"
         sequence:
           - variables:
               old_vol: "{{ state_attr(media_entity, 'volume_level') | float(0.3) }}"
-              delta: "{{ (step_vol | float(0.03)) * count }}"
+              delta:   "{{ (step_vol | float(0.03)) * count }}"
               new_vol: >
                 {% set v = old_vol + delta %}
                 {% if v < 0 %} 0
                 {% elif v > 1 %} 1
-                {% else %} {{ v }} {% endif %}
+                {% else %} {{ v }}
+                {% endif %}
           - service: media_player.volume_set
             target:
               entity_id: "{{ media_entity }}"
             data:
               volume_level: "{{ new_vol }}"
 
-      # Media scroll left: volume down
-      - conditions: >
-          {{ trigger.entity_id == ev_media_left and ev_type.startswith('multi_press_') }}
+      - conditions: "{{ role == 'media' and trigger.entity_id == ev_left and ev_type.startswith('multi_press_') }}"
         sequence:
           - variables:
               old_vol: "{{ state_attr(media_entity, 'volume_level') | float(0.3) }}"
-              delta: "{{ (step_vol | float(0.03)) * count }}"
+              delta:   "{{ (step_vol | float(0.03)) * count }}"
               new_vol: >
                 {% set v = old_vol - delta %}
                 {% if v < 0 %} 0
                 {% elif v > 1 %} 1
-                {% else %} {{ v }} {% endif %}
+                {% else %} {{ v }}
+                {% endif %}
           - service: media_player.volume_set
             target:
               entity_id: "{{ media_entity }}"
